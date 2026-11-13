@@ -1,0 +1,9 @@
+# Optional Railway deploy config (alternative to Render).
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install && npx prisma generate && npm run build"
+
+[deploy]
+startCommand = "npm run start:prod"
+healthcheckPath = "/api/health"
+restartPolicyType = "ON_FAILURE"
