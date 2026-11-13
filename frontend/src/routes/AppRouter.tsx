@@ -1,5 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from '../features/auth/LoginPage';
+import { EmployeeDetailPage } from '../features/employees/EmployeeDetailPage';
+import { EmployeesPage } from '../features/employees/EmployeesPage';
+import { SalariesPage } from '../features/salaries/SalariesPage';
+import { SalaryHistoryPage } from '../features/salaries/SalaryHistoryPage';
 import { AppLayout } from '../layouts/AppLayout';
 import { PlaceholderPage } from '../pages/PlaceholderPage';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -17,37 +21,14 @@ export function AppRouter() {
               element={
                 <PlaceholderPage
                   title="Dashboard"
-                  description="Currency-aware payroll KPIs and charts will appear here."
+                  description="Currency-aware payroll KPIs and charts will appear here in Phase 4."
                 />
               }
             />
-            <Route
-              path="/employees"
-              element={
-                <PlaceholderPage
-                  title="Employees"
-                  description="Server-side employee search, filters, and CRUD arrive in Phase 3."
-                />
-              }
-            />
-            <Route
-              path="/salaries"
-              element={
-                <PlaceholderPage
-                  title="Salary Management"
-                  description="Salary revisions with audit trails arrive in Phase 3."
-                />
-              }
-            />
-            <Route
-              path="/salary-history"
-              element={
-                <PlaceholderPage
-                  title="Salary History"
-                  description="Historical salary comparison views arrive in Phase 3."
-                />
-              }
-            />
+            <Route path="/employees" element={<EmployeesPage />} />
+            <Route path="/employees/:id" element={<EmployeeDetailPage />} />
+            <Route path="/salaries" element={<SalariesPage />} />
+            <Route path="/salary-history" element={<SalaryHistoryPage />} />
             <Route
               path="/reports"
               element={
@@ -62,7 +43,7 @@ export function AppRouter() {
               element={
                 <PlaceholderPage
                   title="Audit Logs"
-                  description="Immutable change history arrives with salary workflows."
+                  description="Dedicated audit browser arrives in a later phase; salary and employee mutations are already recorded."
                 />
               }
             />
