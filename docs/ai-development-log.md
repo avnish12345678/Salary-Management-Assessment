@@ -240,3 +240,34 @@ Phase 5: deterministic 10,000-employee seed + broader automated tests.
 ### Next phase
 
 Phase 6: security, correctness, and performance review + `docs/performance.md`.
+
+---
+
+## Phase 6 — Security, correctness, performance (2026-11-13)
+
+### Tasks delegated to AI
+
+- Security hardening: production JWT policy, API rate limit, helmet/`x-powered-by`, audit read API+UI.
+- Correctness/performance: rewrite dashboard & reports aggregations to SQL `GROUP BY` / window functions (no full-table Node hydration).
+- Author `docs/performance.md` and `docs/security-review.md`.
+- Add focused tests for audit validation, production secret policy, audit UI permission gate.
+
+### Bugs / risks addressed
+
+1. In-memory aggregation of all open salaries would not scale cleanly at 10k → SQL aggregates.
+2. Placeholder JWT secrets usable in production → env superRefine blocks them.
+3. Audit trail write-only → browseable with RBAC.
+
+### Testing and verification performed
+
+| Check | Result |
+|-------|--------|
+| Backend Jest | **Passed** — 13 suites / 30 tests; DB integration skipped |
+| Frontend Vitest | **Passed** — 6 tests |
+| Backend + frontend builds | **Passed** |
+| Live load test at 10k against Postgres | **Not executed** — DB unavailable here |
+| Penetration test | **Not claimed** |
+
+### Next phase
+
+Phase 7: deployment docs, `.env.example` finalization, and deploy attempt (Vercel + Render + managed Postgres).

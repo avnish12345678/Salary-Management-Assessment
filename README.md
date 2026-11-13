@@ -4,7 +4,7 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 
 ## Status
 
-**Phase 5 complete:** deterministic 10,000-employee seed, expanded automated tests, and Playwright e2e scaffolding.
+**Phase 6 complete:** security/performance review, SQL analytics hardening, audit log browser, and ops docs.
 
 ## Documentation
 
@@ -15,6 +15,8 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 | [docs/database-design.md](docs/database-design.md) | Schema, constraints, indexes |
 | [docs/technical-decisions.md](docs/technical-decisions.md) | Architecture Decision Records |
 | [docs/ai-development-log.md](docs/ai-development-log.md) | AI-assisted development log |
+| [docs/performance.md](docs/performance.md) | Performance & scalability notes |
+| [docs/security-review.md](docs/security-review.md) | Phase 6 security review |
 
 ## Stack
 
@@ -107,7 +109,7 @@ $env:E2E_ENABLED="true"; npm run test:e2e
 3. Employee + salary management — done
 4. Dashboard + reports — done
 5. 10,000-employee seed + broader tests — done
-6. Security/performance review
+6. Security/performance review — done
 7. Deployment
 
 ## API surface (Phases 2–4)
