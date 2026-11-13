@@ -201,3 +201,42 @@ Phase 4: dashboard analytics and salary reporting/exports (currency-safe aggrega
 ### Next phase
 
 Phase 5: deterministic 10,000-employee seed + broader automated tests.
+
+---
+
+## Phase 5 — Seed data & automated tests (2026-11-13)
+
+### Tasks delegated to AI
+
+- Extract pure deterministic generator (`prisma/seed-data.ts`) with fixed RNG seed.
+- Rewrite `prisma/seed.ts` for 10,000 employees, batch inserts, manager assignment, salary history subset, idempotent re-runs.
+- Expand backend tests: seed integrity, report export flattening, DB-gated employee/salary/RBAC/dashboard integration.
+- Expand frontend tests: salary revision validation, reports export permission UI.
+- Add Playwright e2e scaffold (skipped unless `E2E_ENABLED=true`).
+
+### Architectural decisions
+
+- Client-generated deterministic UUIDs enable batch `createMany` without post-fetch joins.
+- Seed integrity asserted in unit tests without requiring PostgreSQL.
+- Vitest excludes `e2e/` so Playwright specs are not executed by component test runner.
+
+### Bugs discovered during validation
+
+1. `generateWorkforce` default literal type `10000` rejected smaller test counts → annotated as `number`.
+2. Vitest picked up Playwright specs → excluded `e2e/**`.
+3. Report export unit test missing required `format` field after Zod inference.
+
+### Testing and verification performed
+
+| Check | Result |
+|-------|--------|
+| Backend Jest | **Passed** — 11 suites / 25 tests; 2 suites skipped (DB integration) |
+| Frontend Vitest | **Passed** — 5 tests |
+| Playwright | **1 skipped** (E2E_ENABLED not set; honest — no live stack run here) |
+| Frontend build | **Passed** |
+| Live `npm run db:seed` against PostgreSQL | **Not executed** — PostgreSQL unavailable on this machine |
+| Claimed 10k rows in DB | **Not claimed** — generator verified at 10k; DB insert pending local Postgres |
+
+### Next phase
+
+Phase 6: security, correctness, and performance review + `docs/performance.md`.

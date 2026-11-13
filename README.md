@@ -4,7 +4,7 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 
 ## Status
 
-**Phase 4 complete:** currency-safe dashboard analytics, salary intelligence reports, and CSV/Excel exports.
+**Phase 5 complete:** deterministic 10,000-employee seed, expanded automated tests, and Playwright e2e scaffolding.
 
 ## Documentation
 
@@ -68,15 +68,36 @@ Change these passwords before any shared/production use.
 | `npm run db:migrate` | Apply Prisma migrations |
 | `npm run db:seed` | Idempotent bootstrap seed |
 | `npm test` | Backend Jest + frontend Vitest |
+| `npm run test:e2e` | Playwright flows (skipped unless enabled) |
 | `npm run build` | Production builds |
+| `npm run db:seed` | Deterministic 10,000-employee seed |
+
+### Seed notes
+
+- Fixed RNG seed (`20261113`) → reproducible workforce
+- Exactly **10,000** employees, multi-currency salaries, active/inactive mix
+- Safe to re-run (`createMany` + `skipDuplicates`, salary backfill)
 
 ### Database integration tests
 
-Backend auth integration tests run only when PostgreSQL is available:
+Backend DB integration tests run only when PostgreSQL is available:
 
 ```bash
 # PowerShell
 $env:RUN_DB_TESTS="true"; npm run test --workspace=backend
+```
+
+### Playwright e2e
+
+Requires seeded API + UI:
+
+```bash
+# Terminal 1: API   Terminal 2: UI
+npm run dev:backend
+npm run dev:frontend
+
+# PowerShell
+$env:E2E_ENABLED="true"; npm run test:e2e
 ```
 
 ## Phase roadmap
@@ -85,7 +106,7 @@ $env:RUN_DB_TESTS="true"; npm run test --workspace=backend
 2. Scaffold + auth — done
 3. Employee + salary management — done
 4. Dashboard + reports — done
-5. 10,000-employee seed + broader tests
+5. 10,000-employee seed + broader tests — done
 6. Security/performance review
 7. Deployment
 
