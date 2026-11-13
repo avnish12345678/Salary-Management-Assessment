@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/db';
 import { calculateGross, serializeMoney } from '../../utils/money';
+import { currencySqlFilter, employeeSqlFilters } from '../../utils/sql-filters';
 import { ReportFilters } from './reports.validation';
 
 function employeeWhere(filters: ReportFilters): Prisma.EmployeeWhereInput {
@@ -20,91 +21,196 @@ function employeeWhere(filters: ReportFilters): Prisma.EmployeeWhereInput {
   return where;
 }
 
-async function loadCurrentSalaries(filters: ReportFilters) {
-  return prisma.salaryRecord.findMany({
-    where: {
-      effectiveTo: null,
-      ...(filters.currency ? { currency: filters.currency } : {}),
-      employee: employeeWhere(filters),
-    },
-    include: {
-      employee: {
-        include: {
-          country: true,
-          department: true,
-        },
-      },
-    },
-  });
-}
-
-function withinRange(gross: Prisma.Decimal, filters: ReportFilters) {
-  const value = Number(gross.toFixed(2));
-  if (filters.minSalary !== undefined && value < filters.minSalary) return false;
-  if (filters.maxSalary !== undefined && value > filters.maxSalary) return false;
-  return true;
+function salaryRangeSql(filters: ReportFilters): Prisma.Sql {
+  const parts: Prisma.Sql[] = [];
+  if (filters.minSalary !== undefined) {
+    parts.push(
+      Prisma.sql`AND (sr.base_salary + sr.bonus + sr.allowances) >= ${filters.minSalary}`,
+    );
+  }
+  if (filters.maxSalary !== undefined) {
+    parts.push(
+      Prisma.sql`AND (sr.base_salary + sr.bonus + sr.allowances) <= ${filters.maxSalary}`,
+    );
+  }
+  return parts.length ? Prisma.join(parts, ' ') : Prisma.empty;
 }
 
 export async function buildReports(filters: ReportFilters) {
-  const salaries = await loadCurrentSalaries(filters);
-  const filtered = salaries.filter((row) => withinRange(calculateGross(row), filters));
+  const empFilter = employeeSqlFilters(filters);
+  const curFilter = currencySqlFilter(filters.currency);
+  const rangeFilter = salaryRangeSql(filters);
 
-  const payrollByCountryMap = new Map<
-    string,
-    { country: string; currency: string; totalPayroll: Prisma.Decimal; employeeCount: number }
-  >();
-  const payrollByDepartmentMap = new Map<
-    string,
-    { department: string; currency: string; totalPayroll: Prisma.Decimal; employeeCount: number }
-  >();
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const revisionFrom = filters.fromDate
+    ? new Date(`${filters.fromDate}T00:00:00.000Z`)
+    : monthStart;
+  const revisionTo = filters.toDate
+    ? new Date(`${filters.toDate}T23:59:59.999Z`)
+    : monthEnd;
 
-  for (const row of filtered) {
-    const gross = calculateGross(row);
-    const countryKey = `${row.employee.country.name}:${row.currency}`;
-    const deptKey = `${row.employee.department.name}:${row.currency}`;
+  const [
+    payrollByCountryRows,
+    departmentRows,
+    topPaidRows,
+    rangeCountRows,
+    revisionsThisMonth,
+    recentRevisions,
+  ] = await Promise.all([
+    prisma.$queryRaw<
+      Array<{
+        country: string;
+        currency: string;
+        totalPayroll: Prisma.Decimal;
+        averageSalary: Prisma.Decimal;
+        employeeCount: number;
+      }>
+    >`
+      SELECT c.name AS country,
+             sr.currency,
+             SUM(sr.base_salary + sr.bonus + sr.allowances) AS "totalPayroll",
+             AVG(sr.base_salary + sr.bonus + sr.allowances) AS "averageSalary",
+             COUNT(*)::int AS "employeeCount"
+      FROM salary_records sr
+      INNER JOIN employees e ON e.id = sr.employee_id
+      INNER JOIN countries c ON c.id = e.country_id
+      WHERE sr.effective_to IS NULL
+      ${empFilter}
+      ${curFilter}
+      ${rangeFilter}
+      GROUP BY c.name, sr.currency
+      ORDER BY sr.currency, c.name
+    `,
+    prisma.$queryRaw<
+      Array<{
+        department: string;
+        currency: string;
+        totalPayroll: Prisma.Decimal;
+        averageSalary: Prisma.Decimal;
+        employeeCount: number;
+      }>
+    >`
+      SELECT d.name AS department,
+             sr.currency,
+             SUM(sr.base_salary + sr.bonus + sr.allowances) AS "totalPayroll",
+             AVG(sr.base_salary + sr.bonus + sr.allowances) AS "averageSalary",
+             COUNT(*)::int AS "employeeCount"
+      FROM salary_records sr
+      INNER JOIN employees e ON e.id = sr.employee_id
+      INNER JOIN departments d ON d.id = e.department_id
+      WHERE sr.effective_to IS NULL
+      ${empFilter}
+      ${curFilter}
+      ${rangeFilter}
+      GROUP BY d.name, sr.currency
+      ORDER BY sr.currency, d.name
+    `,
+    prisma.$queryRaw<
+      Array<{
+        employeeId: string;
+        employeeCode: string;
+        fullName: string;
+        department: string;
+        country: string;
+        currency: string;
+        grossSalary: Prisma.Decimal;
+        netSalary: Prisma.Decimal;
+      }>
+    >`
+      SELECT * FROM (
+        SELECT e.id AS "employeeId",
+               e.employee_code AS "employeeCode",
+               CONCAT(e.first_name, ' ', e.last_name) AS "fullName",
+               d.name AS department,
+               c.name AS country,
+               sr.currency,
+               (sr.base_salary + sr.bonus + sr.allowances) AS "grossSalary",
+               (sr.base_salary + sr.bonus + sr.allowances - sr.deductions) AS "netSalary",
+               ROW_NUMBER() OVER (
+                 PARTITION BY sr.currency
+                 ORDER BY (sr.base_salary + sr.bonus + sr.allowances) DESC
+               ) AS rn
+        FROM salary_records sr
+        INNER JOIN employees e ON e.id = sr.employee_id
+        INNER JOIN departments d ON d.id = e.department_id
+        INNER JOIN countries c ON c.id = e.country_id
+        WHERE sr.effective_to IS NULL
+        ${empFilter}
+        ${curFilter}
+        ${rangeFilter}
+      ) ranked
+      WHERE rn <= 10
+      ORDER BY currency, "grossSalary" DESC
+    `,
+    prisma.$queryRaw<Array<{ currency: string; count: number }>>`
+      SELECT sr.currency, COUNT(*)::int AS count
+      FROM salary_records sr
+      INNER JOIN employees e ON e.id = sr.employee_id
+      WHERE sr.effective_to IS NULL
+      ${empFilter}
+      ${curFilter}
+      ${rangeFilter}
+      GROUP BY sr.currency
+      ORDER BY sr.currency
+    `,
+    prisma.salaryRevision.count({
+      where: {
+        createdAt: {
+          gte: revisionFrom,
+          ...(filters.toDate ? { lte: revisionTo } : { lt: monthEnd }),
+        },
+        employee: employeeWhere(filters),
+        ...(filters.currency ? { newRecord: { currency: filters.currency } } : {}),
+      },
+    }),
+    prisma.salaryRevision.findMany({
+      where: {
+        employee: employeeWhere(filters),
+        ...(filters.currency ? { newRecord: { currency: filters.currency } } : {}),
+        ...(filters.fromDate || filters.toDate
+          ? {
+              createdAt: {
+                ...(filters.fromDate ? { gte: revisionFrom } : {}),
+                ...(filters.toDate ? { lte: revisionTo } : {}),
+              },
+            }
+          : {}),
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeCode: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        previousRecord: true,
+        newRecord: true,
+        changedByUser: { select: { email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }),
+  ]);
 
-    const country = payrollByCountryMap.get(countryKey) ?? {
-      country: row.employee.country.name,
-      currency: row.currency,
-      totalPayroll: new Prisma.Decimal(0),
-      employeeCount: 0,
-    };
-    country.totalPayroll = country.totalPayroll.plus(gross);
-    country.employeeCount += 1;
-    payrollByCountryMap.set(countryKey, country);
+  const payrollByCountry = payrollByCountryRows.map((item) => ({
+    country: item.country,
+    currency: item.currency,
+    totalPayroll: serializeMoney(item.totalPayroll),
+    averageSalary: serializeMoney(item.averageSalary),
+    employeeCount: Number(item.employeeCount),
+  }));
 
-    const dept = payrollByDepartmentMap.get(deptKey) ?? {
-      department: row.employee.department.name,
-      currency: row.currency,
-      totalPayroll: new Prisma.Decimal(0),
-      employeeCount: 0,
-    };
-    dept.totalPayroll = dept.totalPayroll.plus(gross);
-    dept.employeeCount += 1;
-    payrollByDepartmentMap.set(deptKey, dept);
-  }
-
-  const payrollByCountry = [...payrollByCountryMap.values()]
-    .map((item) => ({
-      country: item.country,
-      currency: item.currency,
-      totalPayroll: serializeMoney(item.totalPayroll),
-      averageSalary: serializeMoney(item.totalPayroll.div(item.employeeCount)),
-      employeeCount: item.employeeCount,
-    }))
-    .sort((a, b) => a.currency.localeCompare(b.currency) || a.country.localeCompare(b.country));
-
-  const departmentAverages = [...payrollByDepartmentMap.values()]
-    .map((item) => ({
-      department: item.department,
-      currency: item.currency,
-      totalPayroll: serializeMoney(item.totalPayroll),
-      averageSalary: serializeMoney(item.totalPayroll.div(item.employeeCount)),
-      employeeCount: item.employeeCount,
-    }))
-    .sort(
-      (a, b) => a.currency.localeCompare(b.currency) || a.department.localeCompare(b.department),
-    );
+  const departmentAverages = departmentRows.map((item) => ({
+    department: item.department,
+    currency: item.currency,
+    totalPayroll: serializeMoney(item.totalPayroll),
+    averageSalary: serializeMoney(item.averageSalary),
+    employeeCount: Number(item.employeeCount),
+  }));
 
   const highestPayrollByCurrency = new Map<
     string,
@@ -138,100 +244,6 @@ export async function buildReports(filters: ReportFilters) {
     }
   }
 
-  type TopPaid = {
-    employeeId: string;
-    employeeCode: string;
-    fullName: string;
-    department: string;
-    country: string;
-    currency: string;
-    grossSalary: string;
-    netSalary: string;
-  };
-
-  const ranked: TopPaid[] = [...filtered]
-    .map((row) => {
-      const gross = calculateGross(row);
-      return {
-        employeeId: row.employee.id,
-        employeeCode: row.employee.employeeCode,
-        fullName: `${row.employee.firstName} ${row.employee.lastName}`,
-        department: row.employee.department.name,
-        country: row.employee.country.name,
-        currency: row.currency,
-        grossSalary: serializeMoney(gross),
-        netSalary: serializeMoney(gross.minus(row.deductions)),
-      };
-    })
-    .sort((a, b) => {
-      if (a.currency !== b.currency) return a.currency.localeCompare(b.currency);
-      return Number(b.grossSalary) - Number(a.grossSalary);
-    });
-
-  const topPaidEmployees: TopPaid[] = [];
-  const topCounts = new Map<string, number>();
-  for (const item of ranked) {
-    const count = topCounts.get(item.currency) ?? 0;
-    if (count >= 10) continue;
-    topPaidEmployees.push(item);
-    topCounts.set(item.currency, count + 1);
-  }
-
-  const salaryRangeCountByCurrency = new Map<string, number>();
-  for (const row of filtered) {
-    salaryRangeCountByCurrency.set(
-      row.currency,
-      (salaryRangeCountByCurrency.get(row.currency) ?? 0) + 1,
-    );
-  }
-
-  const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-
-  const revisionsThisMonth = await prisma.salaryRevision.count({
-    where: {
-      createdAt: {
-        gte: filters.fromDate ? new Date(`${filters.fromDate}T00:00:00.000Z`) : monthStart,
-        lt: filters.toDate ? new Date(`${filters.toDate}T23:59:59.999Z`) : monthEnd,
-      },
-      employee: employeeWhere(filters),
-      ...(filters.currency ? { newRecord: { currency: filters.currency } } : {}),
-    },
-  });
-
-  const recentRevisions = await prisma.salaryRevision.findMany({
-    where: {
-      employee: employeeWhere(filters),
-      ...(filters.currency ? { newRecord: { currency: filters.currency } } : {}),
-      ...(filters.fromDate || filters.toDate
-        ? {
-            createdAt: {
-              ...(filters.fromDate
-                ? { gte: new Date(`${filters.fromDate}T00:00:00.000Z`) }
-                : {}),
-              ...(filters.toDate ? { lte: new Date(`${filters.toDate}T23:59:59.999Z`) } : {}),
-            },
-          }
-        : {}),
-    },
-    include: {
-      employee: {
-        select: {
-          id: true,
-          employeeCode: true,
-          firstName: true,
-          lastName: true,
-        },
-      },
-      previousRecord: true,
-      newRecord: true,
-      changedByUser: { select: { email: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
-
   const previousVsCurrent = recentRevisions.map((row) => {
     const previousGross = row.previousRecord ? calculateGross(row.previousRecord) : null;
     const currentGross = calculateGross(row.newRecord);
@@ -263,10 +275,9 @@ export async function buildReports(filters: ReportFilters) {
           : {
               currency: null,
               grossDelta: null,
-              note:
-                !row.previousRecord
-                  ? 'No previous record'
-                  : 'Currencies differ; delta not computed across currencies',
+              note: !row.previousRecord
+                ? 'No previous record'
+                : 'Currencies differ; delta not computed across currencies',
             },
     };
   });
@@ -278,15 +289,22 @@ export async function buildReports(filters: ReportFilters) {
       payrollByCountry,
       highestPayrollDepartmentByCurrency: [...highestPayrollByCurrency.values()],
       averageSalaryByDepartment: departmentAverages,
-      topPaidEmployees,
-      employeesInSalaryRangeByCurrency: [...salaryRangeCountByCurrency.entries()].map(
-        ([currency, count]) => ({
-          currency,
-          count,
-          minSalary: filters.minSalary ?? null,
-          maxSalary: filters.maxSalary ?? null,
-        }),
-      ),
+      topPaidEmployees: topPaidRows.map((row) => ({
+        employeeId: row.employeeId,
+        employeeCode: row.employeeCode,
+        fullName: row.fullName,
+        department: row.department,
+        country: row.country,
+        currency: row.currency,
+        grossSalary: serializeMoney(row.grossSalary),
+        netSalary: serializeMoney(row.netSalary),
+      })),
+      employeesInSalaryRangeByCurrency: rangeCountRows.map((row) => ({
+        currency: row.currency,
+        count: Number(row.count),
+        minSalary: filters.minSalary ?? null,
+        maxSalary: filters.maxSalary ?? null,
+      })),
       highestAverageSalaryCountryByCurrency: [...highestAverageCountryByCurrency.values()],
       salaryRevisionsThisMonth: revisionsThisMonth,
       previousVsCurrentSalary: previousVsCurrent,

@@ -1,24 +1,19 @@
 import { EmploymentStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../config/db';
-import { calculateGross, serializeMoney } from '../../utils/money';
+import { serializeMoney } from '../../utils/money';
+import { currencySqlFilter, employeeSqlFilters } from '../../utils/sql-filters';
 import { DashboardFilters } from './dashboard.validation';
 
-type SalaryWithEmployee = {
-  id: string;
+type AggregateRow = {
   currency: string;
-  baseSalary: Prisma.Decimal;
-  bonus: Prisma.Decimal;
-  allowances: Prisma.Decimal;
-  deductions: Prisma.Decimal;
-  employee: {
-    id: string;
-    employmentStatus: EmploymentStatus;
-    countryId: string;
-    departmentId: string;
-    country: { id: string; name: string; code: string };
-    department: { id: string; name: string; code: string };
-  };
+  total: Prisma.Decimal;
+  count: number;
+  label?: string | null;
+  code?: string | null;
 };
+
+type MonthRow = { month: string; count: number };
+type HistogramRow = { currency: string; bucket: string; count: number };
 
 function employeeWhere(filters: DashboardFilters): Prisma.EmployeeWhereInput {
   const where: Prisma.EmployeeWhereInput = {};
@@ -28,172 +23,131 @@ function employeeWhere(filters: DashboardFilters): Prisma.EmployeeWhereInput {
   return where;
 }
 
-async function loadCurrentSalaries(filters: DashboardFilters): Promise<SalaryWithEmployee[]> {
-  return prisma.salaryRecord.findMany({
-    where: {
-      effectiveTo: null,
-      ...(filters.currency ? { currency: filters.currency } : {}),
-      employee: employeeWhere(filters),
-    },
-    select: {
-      id: true,
-      currency: true,
-      baseSalary: true,
-      bonus: true,
-      allowances: true,
-      deductions: true,
-      employee: {
-        select: {
-          id: true,
-          employmentStatus: true,
-          countryId: true,
-          departmentId: true,
-          country: { select: { id: true, name: true, code: true } },
-          department: { select: { id: true, name: true, code: true } },
-        },
-      },
-    },
-  });
-}
-
-function grossOf(row: SalaryWithEmployee) {
-  return calculateGross(row);
-}
-
-function pushBucket(
-  map: Map<string, { key: string; label: string; currency: string; total: Prisma.Decimal; count: number }>,
-  key: string,
-  label: string,
-  currency: string,
-  amount: Prisma.Decimal,
-) {
-  const existing = map.get(key);
-  if (existing) {
-    existing.total = existing.total.plus(amount);
-    existing.count += 1;
-  } else {
-    map.set(key, { key, label, currency, total: amount, count: 1 });
-  }
-}
-
 export async function getDashboardAnalytics(filters: DashboardFilters) {
+  const empFilter = employeeSqlFilters(filters);
+  const curFilter = currencySqlFilter(filters.currency);
   const employeeFilter = employeeWhere(filters);
 
-  const [totalEmployees, activeEmployees, totalDepartments, countriesCovered, salaries, revisionRows] =
-    await Promise.all([
-      prisma.employee.count({ where: employeeFilter }),
-      prisma.employee.count({
-        where: { ...employeeFilter, employmentStatus: EmploymentStatus.ACTIVE },
-      }),
-      prisma.department.count({ where: { isActive: true } }),
-      prisma.employee.findMany({
-        where: employeeFilter,
-        distinct: ['countryId'],
-        select: { countryId: true },
-      }),
-      loadCurrentSalaries(filters),
-      prisma.salaryRevision.findMany({
-        where: {
-          createdAt: {
-            gte: new Date(new Date().getFullYear() - 1, new Date().getMonth(), 1),
-          },
-          ...(filters.currency || filters.countryId || filters.departmentId || filters.employmentStatus
-            ? {
-                employee: {
-                  ...(filters.countryId ? { countryId: filters.countryId } : {}),
-                  ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
-                  ...(filters.employmentStatus
-                    ? { employmentStatus: filters.employmentStatus }
-                    : {}),
-                },
-                ...(filters.currency
-                  ? { newRecord: { currency: filters.currency } }
-                  : {}),
-              }
-            : {}),
-        },
-        select: { createdAt: true },
-      }),
-    ]);
+  const [
+    totalEmployees,
+    activeEmployees,
+    totalDepartments,
+    countriesCovered,
+    payrollByCurrencyRows,
+    countryPayrollRows,
+    departmentPayrollRows,
+    employeesByCountryRows,
+    histogramRows,
+    monthlyRows,
+  ] = await Promise.all([
+    prisma.employee.count({ where: employeeFilter }),
+    prisma.employee.count({
+      where: { ...employeeFilter, employmentStatus: EmploymentStatus.ACTIVE },
+    }),
+    prisma.department.count({ where: { isActive: true } }),
+    prisma.employee.groupBy({
+      by: ['countryId'],
+      where: employeeFilter,
+      _count: { _all: true },
+    }),
+    prisma.$queryRaw<AggregateRow[]>`
+      SELECT sr.currency,
+             SUM(sr.base_salary + sr.bonus + sr.allowances) AS total,
+             COUNT(*)::int AS count
+      FROM salary_records sr
+      INNER JOIN employees e ON e.id = sr.employee_id
+      WHERE sr.effective_to IS NULL
+      ${empFilter}
+      ${curFilter}
+      GROUP BY sr.currency
+      ORDER BY sr.currency
+    `,
+    prisma.$queryRaw<AggregateRow[]>`
+      SELECT c.name AS label,
+             c.code AS code,
+             sr.currency,
+             SUM(sr.base_salary + sr.bonus + sr.allowances) AS total,
+             COUNT(*)::int AS count
+      FROM salary_records sr
+      INNER JOIN employees e ON e.id = sr.employee_id
+      INNER JOIN countries c ON c.id = e.country_id
+      WHERE sr.effective_to IS NULL
+      ${empFilter}
+      ${curFilter}
+      GROUP BY c.name, c.code, sr.currency
+      ORDER BY sr.currency, c.name
+    `,
+    prisma.$queryRaw<AggregateRow[]>`
+      SELECT d.name AS label,
+             d.code AS code,
+             sr.currency,
+             SUM(sr.base_salary + sr.bonus + sr.allowances) AS total,
+             COUNT(*)::int AS count
+      FROM salary_records sr
+      INNER JOIN employees e ON e.id = sr.employee_id
+      INNER JOIN departments d ON d.id = e.department_id
+      WHERE sr.effective_to IS NULL
+      ${empFilter}
+      ${curFilter}
+      GROUP BY d.name, d.code, sr.currency
+      ORDER BY sr.currency, d.name
+    `,
+    prisma.$queryRaw<Array<{ country: string; countryCode: string; count: number }>>`
+      SELECT c.name AS country,
+             c.code AS "countryCode",
+             COUNT(*)::int AS count
+      FROM employees e
+      INNER JOIN countries c ON c.id = e.country_id
+      WHERE 1=1
+      ${empFilter}
+      GROUP BY c.name, c.code
+      ORDER BY count DESC, c.name
+    `,
+    prisma.$queryRaw<HistogramRow[]>`
+      SELECT sr.currency,
+             CONCAT(
+               (FLOOR(
+                 (sr.base_salary + sr.bonus + sr.allowances)::numeric
+                 / CASE WHEN sr.currency = 'INR' THEN 500000 ELSE 25000 END
+               ) * CASE WHEN sr.currency = 'INR' THEN 500000 ELSE 25000 END)::bigint,
+               '-',
+               (FLOOR(
+                 (sr.base_salary + sr.bonus + sr.allowances)::numeric
+                 / CASE WHEN sr.currency = 'INR' THEN 500000 ELSE 25000 END
+               ) * CASE WHEN sr.currency = 'INR' THEN 500000 ELSE 25000 END
+               + CASE WHEN sr.currency = 'INR' THEN 500000 ELSE 25000 END - 1)::bigint
+             ) AS bucket,
+             COUNT(*)::int AS count
+      FROM salary_records sr
+      INNER JOIN employees e ON e.id = sr.employee_id
+      WHERE sr.effective_to IS NULL
+      ${empFilter}
+      ${curFilter}
+      GROUP BY sr.currency, bucket
+      ORDER BY sr.currency, bucket
+    `,
+    prisma.$queryRaw<MonthRow[]>`
+      SELECT TO_CHAR(DATE_TRUNC('month', r.created_at), 'YYYY-MM') AS month,
+             COUNT(*)::int AS count
+      FROM salary_revisions r
+      INNER JOIN employees e ON e.id = r.employee_id
+      INNER JOIN salary_records sr ON sr.id = r.new_record_id
+      WHERE r.created_at >= DATE_TRUNC('month', NOW() - INTERVAL '11 months')
+      ${empFilter}
+      ${curFilter}
+      GROUP BY 1
+      ORDER BY 1
+    `,
+  ]);
 
-  const payrollByCurrency = new Map<
-    string,
-    { currency: string; totalAnnualPayroll: Prisma.Decimal; employeeCount: number }
-  >();
-
-  const countryPayroll = new Map<
-    string,
-    { key: string; label: string; currency: string; total: Prisma.Decimal; count: number }
-  >();
-  const departmentPayroll = new Map<
-    string,
-    { key: string; label: string; currency: string; total: Prisma.Decimal; count: number }
-  >();
-  const employeesByCountry = new Map<string, { country: string; countryCode: string; count: number }>();
-  const histogramByCurrency = new Map<string, Map<string, number>>();
-
-  for (const row of salaries) {
-    const gross = grossOf(row);
-    const currencyBucket = payrollByCurrency.get(row.currency) ?? {
-      currency: row.currency,
-      totalAnnualPayroll: new Prisma.Decimal(0),
-      employeeCount: 0,
-    };
-    currencyBucket.totalAnnualPayroll = currencyBucket.totalAnnualPayroll.plus(gross);
-    currencyBucket.employeeCount += 1;
-    payrollByCurrency.set(row.currency, currencyBucket);
-
-    pushBucket(
-      countryPayroll,
-      `${row.employee.country.id}:${row.currency}`,
-      row.employee.country.name,
-      row.currency,
-      gross,
-    );
-    pushBucket(
-      departmentPayroll,
-      `${row.employee.department.id}:${row.currency}`,
-      row.employee.department.name,
-      row.currency,
-      gross,
-    );
-
-    const countryKey = row.employee.country.id;
-    const countryAgg = employeesByCountry.get(countryKey) ?? {
-      country: row.employee.country.name,
-      countryCode: row.employee.country.code,
-      count: 0,
-    };
-    countryAgg.count += 1;
-    employeesByCountry.set(countryKey, countryAgg);
-
-    const buckets = histogramByCurrency.get(row.currency) ?? new Map<string, number>();
-    const value = Number(gross.toFixed(2));
-    const bucketSize = row.currency === 'INR' ? 500000 : 25000;
-    const bucketStart = Math.floor(value / bucketSize) * bucketSize;
-    const label = `${bucketStart}-${bucketStart + bucketSize - 1}`;
-    buckets.set(label, (buckets.get(label) ?? 0) + 1);
-    histogramByCurrency.set(row.currency, buckets);
-  }
-
-  const payrollByCurrencyList = [...payrollByCurrency.values()]
-    .map((item) => ({
-      currency: item.currency,
-      totalAnnualPayroll: serializeMoney(item.totalAnnualPayroll),
-      averageAnnualSalary: serializeMoney(
-        item.employeeCount === 0
-          ? new Prisma.Decimal(0)
-          : item.totalAnnualPayroll.div(item.employeeCount),
-      ),
-      employeeCount: item.employeeCount,
-    }))
-    .sort((a, b) => a.currency.localeCompare(b.currency));
-
-  const monthlyTrendsMap = new Map<string, number>();
-  for (const row of revisionRows) {
-    const key = `${row.createdAt.getUTCFullYear()}-${String(row.createdAt.getUTCMonth() + 1).padStart(2, '0')}`;
-    monthlyTrendsMap.set(key, (monthlyTrendsMap.get(key) ?? 0) + 1);
-  }
+  const payrollByCurrencyList = payrollByCurrencyRows.map((item) => ({
+    currency: item.currency,
+    totalAnnualPayroll: serializeMoney(item.total),
+    averageAnnualSalary: serializeMoney(
+      item.count === 0 ? new Prisma.Decimal(0) : new Prisma.Decimal(item.total).div(item.count),
+    ),
+    employeeCount: Number(item.count),
+  }));
 
   return {
     kpis: {
@@ -201,49 +155,41 @@ export async function getDashboardAnalytics(filters: DashboardFilters) {
       activeEmployees,
       totalDepartments,
       countriesCovered: countriesCovered.length,
-      // Financial KPIs are always currency-specific — never a single cross-currency total.
       payrollByCurrency: payrollByCurrencyList,
     },
     charts: {
-      countryPayroll: [...countryPayroll.values()]
-        .map((item) => ({
-          country: item.label,
-          currency: item.currency,
-          totalPayroll: serializeMoney(item.total),
-          employeeCount: item.count,
-        }))
-        .sort((a, b) => a.currency.localeCompare(b.currency) || a.country.localeCompare(b.country)),
-      departmentPayroll: [...departmentPayroll.values()]
-        .map((item) => ({
-          department: item.label,
-          currency: item.currency,
-          totalPayroll: serializeMoney(item.total),
-          employeeCount: item.count,
-        }))
-        .sort(
-          (a, b) =>
-            a.currency.localeCompare(b.currency) || a.department.localeCompare(b.department),
-        ),
-      departmentAverageSalary: [...departmentPayroll.values()]
-        .map((item) => ({
-          department: item.label,
-          currency: item.currency,
-          averageSalary: serializeMoney(item.total.div(item.count)),
-          employeeCount: item.count,
-        }))
-        .sort(
-          (a, b) =>
-            a.currency.localeCompare(b.currency) || a.department.localeCompare(b.department),
-        ),
-      salaryHistogram: [...histogramByCurrency.entries()].flatMap(([currency, buckets]) =>
-        [...buckets.entries()]
-          .map(([bucket, count]) => ({ currency, bucket, count }))
-          .sort((a, b) => a.bucket.localeCompare(b.bucket, undefined, { numeric: true })),
-      ),
-      employeesByCountry: [...employeesByCountry.values()].sort((a, b) => b.count - a.count),
-      monthlyRevisionTrends: [...monthlyTrendsMap.entries()]
-        .map(([month, count]) => ({ month, count }))
-        .sort((a, b) => a.month.localeCompare(b.month)),
+      countryPayroll: countryPayrollRows.map((item) => ({
+        country: item.label ?? 'Unknown',
+        currency: item.currency,
+        totalPayroll: serializeMoney(item.total),
+        employeeCount: Number(item.count),
+      })),
+      departmentPayroll: departmentPayrollRows.map((item) => ({
+        department: item.label ?? 'Unknown',
+        currency: item.currency,
+        totalPayroll: serializeMoney(item.total),
+        employeeCount: Number(item.count),
+      })),
+      departmentAverageSalary: departmentPayrollRows.map((item) => ({
+        department: item.label ?? 'Unknown',
+        currency: item.currency,
+        averageSalary: serializeMoney(new Prisma.Decimal(item.total).div(item.count)),
+        employeeCount: Number(item.count),
+      })),
+      salaryHistogram: histogramRows.map((row) => ({
+        currency: row.currency,
+        bucket: row.bucket,
+        count: Number(row.count),
+      })),
+      employeesByCountry: employeesByCountryRows.map((row) => ({
+        country: row.country,
+        countryCode: row.countryCode,
+        count: Number(row.count),
+      })),
+      monthlyRevisionTrends: monthlyRows.map((row) => ({
+        month: row.month,
+        count: Number(row.count),
+      })),
     },
     notes: {
       annualBasis:
