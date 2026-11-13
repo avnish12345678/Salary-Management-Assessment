@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuditLogsPage } from '../features/audit/AuditLogsPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { EmployeeDetailPage } from '../features/employees/EmployeeDetailPage';
@@ -24,15 +25,7 @@ export function AppRouter() {
             <Route path="/salaries" element={<SalariesPage />} />
             <Route path="/salary-history" element={<SalaryHistoryPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route
-              path="/audit"
-              element={
-                <PlaceholderPage
-                  title="Audit Logs"
-                  description="Dedicated audit browser arrives later; salary and employee mutations are already recorded."
-                />
-              }
-            />
+            <Route path="/audit" element={<AuditLogsPage />} />
             <Route
               path="/settings"
               element={
