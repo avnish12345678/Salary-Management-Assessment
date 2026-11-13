@@ -1,7 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from '../features/auth/LoginPage';
+import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { EmployeeDetailPage } from '../features/employees/EmployeeDetailPage';
 import { EmployeesPage } from '../features/employees/EmployeesPage';
+import { ReportsPage } from '../features/reports/ReportsPage';
 import { SalariesPage } from '../features/salaries/SalariesPage';
 import { SalaryHistoryPage } from '../features/salaries/SalaryHistoryPage';
 import { AppLayout } from '../layouts/AppLayout';
@@ -16,34 +18,18 @@ export function AppRouter() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route
-              path="/dashboard"
-              element={
-                <PlaceholderPage
-                  title="Dashboard"
-                  description="Currency-aware payroll KPIs and charts will appear here in Phase 4."
-                />
-              }
-            />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/employees" element={<EmployeesPage />} />
             <Route path="/employees/:id" element={<EmployeeDetailPage />} />
             <Route path="/salaries" element={<SalariesPage />} />
             <Route path="/salary-history" element={<SalaryHistoryPage />} />
-            <Route
-              path="/reports"
-              element={
-                <PlaceholderPage
-                  title="Reports"
-                  description="Advanced payroll reporting and exports arrive in Phase 4."
-                />
-              }
-            />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route
               path="/audit"
               element={
                 <PlaceholderPage
                   title="Audit Logs"
-                  description="Dedicated audit browser arrives in a later phase; salary and employee mutations are already recorded."
+                  description="Dedicated audit browser arrives later; salary and employee mutations are already recorded."
                 />
               }
             />
