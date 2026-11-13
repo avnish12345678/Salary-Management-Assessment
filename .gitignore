@@ -19,3 +19,5 @@ frontend/blob-report/
 .turbo/
 frontend/dist/
 backend/dist/
+.vercel/
+frontend/.vercel/
