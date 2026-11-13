@@ -4,7 +4,7 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 
 ## Status
 
-**Phase 6 complete:** security/performance review, SQL analytics hardening, audit log browser, and ops docs.
+**Phase 7 complete:** production deploy configs, migration/seed/health docs, and deployment runbook. Live Vercel/Render URLs require your account login (see [docs/deployment.md](docs/deployment.md)).
 
 ## Documentation
 
@@ -17,20 +17,21 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 | [docs/ai-development-log.md](docs/ai-development-log.md) | AI-assisted development log |
 | [docs/performance.md](docs/performance.md) | Performance & scalability notes |
 | [docs/security-review.md](docs/security-review.md) | Phase 6 security review |
+| [docs/deployment.md](docs/deployment.md) | Production deployment runbook |
 
 ## Stack
 
-- **Frontend:** React, TypeScript, Vite, MUI, React Router, TanStack Query, RHF, Zod, Recharts, Axios
-- **Backend:** Node.js, Express, TypeScript, Prisma, PostgreSQL
+- **Frontend:** React, TypeScript, Vite, MUI, React Router, TanStack Query, RHF, Zod, Recharts, Axios → **Vercel**
+- **Backend:** Node.js, Express, TypeScript, Prisma → **Render** (Railway optional)
+- **Database:** PostgreSQL (managed)
 - **Auth:** JWT + bcrypt + RBAC
-- **Deploy (planned):** Vercel (frontend), Render (API), managed PostgreSQL
 
 ## Prerequisites
 
 - Node.js 20+
 - PostgreSQL 16+ (local install or Docker)
 
-## Quick start
+## Quick start (local)
 
 ```bash
 # 1) Install dependencies
@@ -43,7 +44,7 @@ docker compose up -d
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 
-# 4) Migrate + bootstrap seed (HR Manager account)
+# 4) Migrate + seed (exactly 10,000 employees)
 npm run db:migrate
 npm run db:seed
 
@@ -52,7 +53,7 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
-### Default bootstrap accounts (Phase 2 seed)
+### Default accounts (after seed)
 
 | Email | Password | Role |
 |-------|----------|------|
@@ -68,51 +69,51 @@ Change these passwords before any shared/production use.
 | `npm run dev:backend` | API on `:4000` |
 | `npm run dev:frontend` | UI on `:5173` |
 | `npm run db:migrate` | Apply Prisma migrations |
-| `npm run db:seed` | Idempotent bootstrap seed |
-| `npm test` | Backend Jest + frontend Vitest |
-| `npm run test:e2e` | Playwright flows (skipped unless enabled) |
-| `npm run build` | Production builds |
 | `npm run db:seed` | Deterministic 10,000-employee seed |
+| `npm test` | Backend Jest + frontend Vitest |
+| `npm run test:e2e` | Playwright flows (requires `E2E_ENABLED=true`) |
+| `npm run build` | Production builds |
 
-### Seed notes
-
-- Fixed RNG seed (`20261113`) → reproducible workforce
-- Exactly **10,000** employees, multi-currency salaries, active/inactive mix
-- Safe to re-run (`createMany` + `skipDuplicates`, salary backfill)
-
-### Database integration tests
-
-Backend DB integration tests run only when PostgreSQL is available:
+### Production start (API)
 
 ```bash
-# PowerShell
-$env:RUN_DB_TESTS="true"; npm run test --workspace=backend
+cd backend
+npm run build
+npm run start:prod   # prisma migrate deploy && node dist/server.js
 ```
 
-### Playwright e2e
+Health check: `GET /api/health`
 
-Requires seeded API + UI:
+## Deployment (summary)
+
+1. Provision managed PostgreSQL.
+2. Deploy `backend/` to Render using [`render.yaml`](render.yaml) or the commands in [docs/deployment.md](docs/deployment.md).
+3. Set `JWT_SECRET`, `DATABASE_URL`, and `CORS_ORIGIN` in Render secrets.
+4. Deploy `frontend/` to Vercel with `VITE_API_BASE_URL` pointing at the API `/api` URL.
+5. Run `npm run db:seed` once against production `DATABASE_URL`.
+6. Verify login + dashboard + reports.
+
+## Testing notes
 
 ```bash
-# Terminal 1: API   Terminal 2: UI
-npm run dev:backend
-npm run dev:frontend
+# DB integration tests
+$env:RUN_DB_TESTS="true"; npm run test --workspace=backend
 
-# PowerShell
+# Playwright (API + UI running)
 $env:E2E_ENABLED="true"; npm run test:e2e
 ```
 
 ## Phase roadmap
 
-1. Requirements & architecture — done
-2. Scaffold + auth — done
-3. Employee + salary management — done
-4. Dashboard + reports — done
-5. 10,000-employee seed + broader tests — done
-6. Security/performance review — done
-7. Deployment
+1. Requirements & architecture — done  
+2. Scaffold + auth — done  
+3. Employee + salary management — done  
+4. Dashboard + reports — done  
+5. 10,000-employee seed + broader tests — done  
+6. Security/performance review — done  
+7. Deployment — done (configs + runbook; connect cloud accounts to publish)
 
-## API surface (Phases 2–4)
+## API surface
 
 - Auth: `POST /api/auth/login|logout`, `GET /api/auth/me`
 - Employees: `GET/POST /api/employees`, `GET/PATCH /api/employees/:id`, `PATCH /api/employees/:id/status`
@@ -120,3 +121,5 @@ $env:E2E_ENABLED="true"; npm run test:e2e
 - Salaries: current/history/revisions/compare + `POST .../revisions`, `GET /api/salaries/revisions`
 - Dashboard: `GET /api/dashboard/analytics`
 - Reports: `GET /api/reports/summary?format=json|csv|xlsx`
+- Audit: `GET /api/audit`
+- Health: `GET /api/health`

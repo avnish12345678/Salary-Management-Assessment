@@ -271,3 +271,40 @@ Phase 6: security, correctness, and performance review + `docs/performance.md`.
 ### Next phase
 
 Phase 7: deployment docs, `.env.example` finalization, and deploy attempt (Vercel + Render + managed Postgres).
+
+---
+
+## Phase 7 — Deployment (2026-11-13)
+
+### Tasks delegated to AI
+
+- Add Render Blueprint (`render.yaml`), Vercel SPA config, Railway/Docker alternatives.
+- Backend production scripts: `postinstall` prisma generate, `start:prod` migrate+serve; move `prisma` to dependencies.
+- Author `docs/deployment.md`; finalize README and `.env.example` / production env templates.
+- Attempt live deploy via Vercel CLI.
+
+### Deploy attempt (actual)
+
+| Check | Result |
+|-------|--------|
+| `vercel whoami` | Logged out |
+| `vercel deploy --temporary` (frontend / dist) | Failed: `tar unpack failed` |
+| Render/Postgres provision | Not possible without interactive account |
+| Claimed live production URL | **No — not claimed** |
+
+### Corrections / notes
+
+- Documented exact owner steps to publish once logged into Vercel + Render.
+- Emphasized secrets stay in platform dashboards; CORS must match Vercel origin.
+- Seed remains a one-off post-migrate step against managed `DATABASE_URL`.
+
+### Testing and verification performed
+
+| Check | Result |
+|-------|--------|
+| Production build scripts | Verified via `npm run build` in this phase preparation |
+| Live health check on public URL | **Not available** |
+
+### Project status
+
+Phases 1–7 deliverables are in-repo. Remaining owner action: authenticate to cloud providers and apply the deployment runbook.
