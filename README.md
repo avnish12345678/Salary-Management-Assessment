@@ -4,7 +4,7 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 
 ## Status
 
-**Phase 3 complete:** employee CRUD with server-side filters/pagination, salary revisions with history/compare/audit, and HR UI modules.
+**Phase 4 complete:** currency-safe dashboard analytics, salary intelligence reports, and CSV/Excel exports.
 
 ## Documentation
 
@@ -84,15 +84,16 @@ $env:RUN_DB_TESTS="true"; npm run test --workspace=backend
 1. Requirements & architecture — done
 2. Scaffold + auth — done
 3. Employee + salary management — done
-4. Dashboard + reports
+4. Dashboard + reports — done
 5. 10,000-employee seed + broader tests
 6. Security/performance review
 7. Deployment
 
-## Phase 3 API surface
+## API surface (Phases 2–4)
 
-- `GET/POST /api/employees`, `GET/PATCH /api/employees/:id`, `PATCH /api/employees/:id/status`
-- `GET /api/countries`, `GET /api/departments`
-- `GET /api/salaries/employees/:employeeId/current|history|revisions|compare`
-- `POST /api/salaries/employees/:employeeId/revisions`
-- `GET /api/salaries/revisions`
+- Auth: `POST /api/auth/login|logout`, `GET /api/auth/me`
+- Employees: `GET/POST /api/employees`, `GET/PATCH /api/employees/:id`, `PATCH /api/employees/:id/status`
+- Reference: `GET /api/countries`, `GET /api/departments`
+- Salaries: current/history/revisions/compare + `POST .../revisions`, `GET /api/salaries/revisions`
+- Dashboard: `GET /api/dashboard/analytics`
+- Reports: `GET /api/reports/summary?format=json|csv|xlsx`

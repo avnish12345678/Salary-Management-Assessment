@@ -164,3 +164,40 @@ Phase 3: employee and salary management APIs + UI (pagination, filters, revision
 ### Next phase
 
 Phase 4: dashboard analytics and salary reporting/exports (currency-safe aggregations).
+
+---
+
+## Phase 4 — Dashboard & reports (2026-11-13)
+
+### Tasks delegated to AI
+
+- Implement dashboard analytics API with KPI + chart payloads, filters, and per-currency payroll totals.
+- Implement reports summary API answering the eight HR payroll questions.
+- Add CSV/Excel export with `reports:export` authorization gate.
+- Build Dashboard and Reports UI (Recharts + filterable tables + download actions).
+- Add unit/component tests for filters, CSV helper, and dashboard rendering.
+
+### Architectural decisions
+
+- Current open gross salary treated as annual compensation for payroll KPIs (documented in API notes).
+- Financial rankings/top-N computed independently per currency.
+- Export formats share the same filter validation and permission checks as JSON reports.
+
+### Bugs discovered during validation
+
+1. Dashboard test asserted `getByText('5')` but both total employees and countries covered were 5 → assert unique active count instead.
+2. exceljs installed for XLSX generation; CSV kept dependency-free.
+
+### Testing and verification performed
+
+| Check | Result |
+|-------|--------|
+| Backend Jest | **Passed** — 9 suites / 19 tests; DB integration skipped |
+| Frontend Vitest | **Passed** — 3 tests |
+| Backend + frontend builds | **Passed** |
+| Live analytics against PostgreSQL | **Not executed** — DB unavailable on this machine |
+| 10k seed | **Not run** — Phase 5 |
+
+### Next phase
+
+Phase 5: deterministic 10,000-employee seed + broader automated tests.
