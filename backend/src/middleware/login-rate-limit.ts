@@ -1,0 +1,18 @@
+import rateLimit from 'express-rate-limit';
+import { env } from '../config/env';
+
+export const loginRateLimiter = rateLimit({
+  windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MS,
+  max: env.LOGIN_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    data: null,
+    error: {
+      message: 'Too many login attempts. Please try again later.',
+      details: null,
+    },
+    meta: null,
+  },
+});
