@@ -4,7 +4,7 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 
 ## Status
 
-**Phase 2 complete:** monorepo scaffold, Prisma schema/migration, JWT auth + RBAC, health check, login UI with protected app shell.
+**Phase 3 complete:** employee CRUD with server-side filters/pagination, salary revisions with history/compare/audit, and HR UI modules.
 
 ## Documentation
 
@@ -83,8 +83,16 @@ $env:RUN_DB_TESTS="true"; npm run test --workspace=backend
 
 1. Requirements & architecture — done
 2. Scaffold + auth — done
-3. Employee + salary management
+3. Employee + salary management — done
 4. Dashboard + reports
 5. 10,000-employee seed + broader tests
 6. Security/performance review
 7. Deployment
+
+## Phase 3 API surface
+
+- `GET/POST /api/employees`, `GET/PATCH /api/employees/:id`, `PATCH /api/employees/:id/status`
+- `GET /api/countries`, `GET /api/departments`
+- `GET /api/salaries/employees/:employeeId/current|history|revisions|compare`
+- `POST /api/salaries/employees/:employeeId/revisions`
+- `GET /api/salaries/revisions`

@@ -124,3 +124,43 @@ Phase 2: scaffold backend/frontend, Prisma schema/migrations, authentication and
 ### Next phase
 
 Phase 3: employee and salary management APIs + UI (pagination, filters, revisions, transactions, audit).
+
+---
+
+## Phase 3 — Employee & salary management (2026-11-13)
+
+### Tasks delegated to AI
+
+- Implement employees APIs: list/search/filter/sort/paginate, create/update, activate/deactivate, designations meta.
+- Implement salaries APIs: current, history, revisions, compare, revise (transactional close-and-insert + audit).
+- Implement countries/departments list APIs.
+- Extend bootstrap seed with 5 multi-currency sample employees (still not 10k).
+- Build Employees, Employee detail, Salary Management, and Salary History UI with RBAC-aware actions.
+- Add unit/validation tests and an EmployeesPage rendering test.
+
+### Architectural decisions reinforced
+
+- Gross/net computed in services; monetary values serialized as fixed 2-decimal strings.
+- Overlap prevention in salary service + DB partial unique open period.
+- HR_EXECUTIVE can write employees / read salaries; salary revisions require `salaries:write`.
+- Debounced client search; all listing remains server-paginated.
+
+### Bugs discovered during validation
+
+1. MUI v9 TypeScript: `justifyContent`, `display`, and `InputLabelProps` rejected → moved to `sx` / `slotProps`.
+2. Validate middleware typing too narrow for Zod `superRefine` schemas → switched to `ZodTypeAny`.
+
+### Testing and verification performed
+
+| Check | Result |
+|-------|--------|
+| Backend Jest | **Passed** — 7 suites / 16 tests; DB integration still skipped |
+| Frontend Vitest | **Passed** — 2 tests (login + employees table) |
+| Backend build | **Passed** |
+| Frontend build | **Passed** |
+| Live DB migrate/seed/API smoke | **Not executed** — PostgreSQL unavailable on this machine |
+| 10,000 employee seed | **Not run** — Phase 5 |
+
+### Next phase
+
+Phase 4: dashboard analytics and salary reporting/exports (currency-safe aggregations).
