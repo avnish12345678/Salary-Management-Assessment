@@ -13,6 +13,9 @@ Thumbs.db
 *.tsbuildinfo
 playwright-report/
 test-results/
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
 .turbo/
 frontend/dist/
 backend/dist/
