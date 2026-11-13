@@ -6,9 +6,11 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { requestIdMiddleware } from './middleware/request-id';
 import authRoutes from './modules/auth/auth.routes';
 import countriesRoutes from './modules/countries/countries.routes';
+import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import departmentsRoutes from './modules/departments/departments.routes';
 import employeesRoutes from './modules/employees/employees.routes';
 import healthRoutes from './modules/health/health.routes';
+import reportsRoutes from './modules/reports/reports.routes';
 import salariesRoutes from './modules/salaries/salaries.routes';
 
 export function createApp() {
@@ -40,6 +42,8 @@ export function createApp() {
   app.use('/api/departments', departmentsRoutes);
   app.use('/api/employees', employeesRoutes);
   app.use('/api/salaries', salariesRoutes);
+  app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/reports', reportsRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
