@@ -59,3 +59,68 @@ This log records how AI assistance was used on the ACME assessment. Entries are 
 ### Next phase
 
 Phase 2: scaffold backend/frontend, Prisma schema/migrations, authentication and RBAC.
+
+---
+
+## Phase 2 — Scaffold, schema, authentication (2026-11-13)
+
+### Tasks delegated to AI
+
+- Scaffold npm workspaces monorepo (`backend/`, `frontend/`).
+- Implement Prisma schema + SQL migration (including partial unique open salary index).
+- Implement Express app with helmet/CORS, health check, JWT auth, bcrypt, RBAC permissions, login rate limit.
+- Implement React login UI, AuthContext, protected routes, ACME app shell.
+- Write Jest unit tests and Vitest login validation test; optional DB integration tests gated by `RUN_DB_TESTS`.
+- Add `docker-compose.yml` for PostgreSQL and `.env.example` files.
+
+### Prompts / instructions used (summary)
+
+- “Complete phase 2” after Phase 1 docs approval.
+- Assessment Phase 2: set up backend, frontend, database, and authentication.
+- Locked decisions from Phase 1 plan (RBAC matrix, Decimal money, monorepo).
+
+### Architectural decisions reinforced
+
+- Bootstrap seed creates HR Manager + Super Admin + reference countries/departments only; 10k employees deferred to Phase 5.
+- Auth integration tests skipped by default without PostgreSQL (`RUN_DB_TESTS=true` to enable).
+- MUI v9 system props: prefer `sx` for spacing/fontWeight to satisfy TypeScript.
+
+### AI-generated code reviewed
+
+| Area | Review focus |
+|------|----------------|
+| Prisma schema/migration | Required tables, NUMERIC(14,2), partial unique index |
+| Auth service | No password hash in responses; generic login failure message |
+| Middleware | JWT verify + active user check; permission matrix |
+| Frontend AuthContext | Token persistence; 401 interceptor logout |
+| Tests | Deterministic unit tests; honest skip for DB integration |
+
+### Bugs discovered during validation
+
+1. Jest failed parsing `jest.config.ts` without `ts-node` → switched to `jest.config.js`.
+2. Test env set `BCRYPT_SALT_ROUNDS=4` but schema requires ≥8 → corrected to 8.
+3. Frontend build failed on MUI v9 typings for `mb`/`fontWeight` props → moved to `sx`.
+4. No local PostgreSQL/Docker on the development machine → migrations not applied in this environment; SQL migration checked into repo for deploy/local Docker use.
+
+### Corrections applied
+
+- Fixed Jest config and bcrypt salt rounds for tests.
+- Fixed Login/AppLayout/Placeholder MUI typings.
+- Documented DB prerequisite and bootstrap credentials in README.
+- Did **not** claim DB integration tests or 10k seed ran.
+
+### Testing and verification performed
+
+| Check | Result |
+|-------|--------|
+| `npm run test --workspace=backend` | **Passed** — 4 suites / 9 tests; 1 suite skipped (DB integration) |
+| `npm run test --workspace=frontend` | **Passed** — 1 test (login validation) |
+| `npm run build --workspace=backend` | **Passed** |
+| `npm run build --workspace=frontend` | **Passed** |
+| `prisma migrate deploy` / live login against PostgreSQL | **Not executed** — PostgreSQL not available on this machine |
+| 10,000 employee seed | **Not run** — Phase 5 |
+| Deployment | **Not claimed** |
+
+### Next phase
+
+Phase 3: employee and salary management APIs + UI (pagination, filters, revisions, transactions, audit).

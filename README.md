@@ -4,7 +4,7 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 
 ## Status
 
-**Phase 1 complete:** product requirements and architecture documentation. Application scaffolding starts in Phase 2.
+**Phase 2 complete:** monorepo scaffold, Prisma schema/migration, JWT auth + RBAC, health check, login UI with protected app shell.
 
 ## Documentation
 
@@ -16,13 +16,75 @@ HR Salary Intelligence Platform for ACME (~10,000 multi-country employees): empl
 | [docs/technical-decisions.md](docs/technical-decisions.md) | Architecture Decision Records |
 | [docs/ai-development-log.md](docs/ai-development-log.md) | AI-assisted development log |
 
-## Planned stack
+## Stack
 
-- **Frontend:** React, TypeScript, Vite, MUI, React Router, TanStack Query, RHF, Zod, Recharts, Axios  
-- **Backend:** Node.js, Express, TypeScript, Prisma, PostgreSQL  
-- **Auth:** JWT + bcrypt + RBAC  
-- **Deploy:** Vercel (frontend), Render (API), managed PostgreSQL  
+- **Frontend:** React, TypeScript, Vite, MUI, React Router, TanStack Query, RHF, Zod, Recharts, Axios
+- **Backend:** Node.js, Express, TypeScript, Prisma, PostgreSQL
+- **Auth:** JWT + bcrypt + RBAC
+- **Deploy (planned):** Vercel (frontend), Render (API), managed PostgreSQL
 
-## Setup
+## Prerequisites
 
-Local setup, seed (`npm run db:seed`), and deployment instructions will be added with Phase 2–7 deliverables. See requirements and architecture docs for the intended design.
+- Node.js 20+
+- PostgreSQL 16+ (local install or Docker)
+
+## Quick start
+
+```bash
+# 1) Install dependencies
+npm install
+
+# 2) Start PostgreSQL (Docker example)
+docker compose up -d
+
+# 3) Configure environment
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+
+# 4) Migrate + bootstrap seed (HR Manager account)
+npm run db:migrate
+npm run db:seed
+
+# 5) Run API and UI
+npm run dev:backend
+npm run dev:frontend
+```
+
+### Default bootstrap accounts (Phase 2 seed)
+
+| Email | Password | Role |
+|-------|----------|------|
+| `hr.manager@acme.example` | `ChangeMeNow!123` | HR_MANAGER |
+| `super.admin@acme.example` | `ChangeMeNow!123` | SUPER_ADMIN |
+
+Change these passwords before any shared/production use.
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev:backend` | API on `:4000` |
+| `npm run dev:frontend` | UI on `:5173` |
+| `npm run db:migrate` | Apply Prisma migrations |
+| `npm run db:seed` | Idempotent bootstrap seed |
+| `npm test` | Backend Jest + frontend Vitest |
+| `npm run build` | Production builds |
+
+### Database integration tests
+
+Backend auth integration tests run only when PostgreSQL is available:
+
+```bash
+# PowerShell
+$env:RUN_DB_TESTS="true"; npm run test --workspace=backend
+```
+
+## Phase roadmap
+
+1. Requirements & architecture — done
+2. Scaffold + auth — done
+3. Employee + salary management
+4. Dashboard + reports
+5. 10,000-employee seed + broader tests
+6. Security/performance review
+7. Deployment
