@@ -1,169 +1,53 @@
 /**
- * Bootstrap seed: reference data, admin users, and a small sample workforce.
- * Phase 5 will extend this to exactly 10,000 deterministic employees.
- * Safe to re-run (upserts; no duplicate users/employees/countries/departments).
+ * Deterministic ACME seed:
+ * - Exactly 10,000 employees
+ * - Multi-country / multi-currency salaries
+ * - Idempotent re-runs (skipDuplicates + backfill missing salaries)
  */
 import { EmploymentStatus, PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import {
+  assertWorkforceIntegrity,
+  COUNTRIES,
+  DEPARTMENTS,
+  generateWorkforce,
+  SEED_CONSTANTS,
+} from './seed-data';
 
 const prisma = new PrismaClient();
 
-const HR_EMAIL = 'hr.manager@acme.example';
-const HR_PASSWORD = 'ChangeMeNow!123';
-
-const countries = [
-  { code: 'US', name: 'United States', currencyCode: 'USD' },
-  { code: 'IN', name: 'India', currencyCode: 'INR' },
-  { code: 'GB', name: 'United Kingdom', currencyCode: 'GBP' },
-  { code: 'DE', name: 'Germany', currencyCode: 'EUR' },
-  { code: 'SG', name: 'Singapore', currencyCode: 'SGD' },
-];
-
-const departments = [
-  { code: 'ENG', name: 'Engineering' },
-  { code: 'HR', name: 'Human Resources' },
-  { code: 'FIN', name: 'Finance' },
-  { code: 'SAL', name: 'Sales' },
-  { code: 'OPS', name: 'Operations' },
-  { code: 'MKT', name: 'Marketing' },
-];
-
-const sampleEmployees = [
-  {
-    employeeCode: 'ACME-000001',
-    firstName: 'Aisha',
-    lastName: 'Patel',
-    email: 'aisha.patel@acme.example',
-    phone: '+1-415-555-0101',
-    departmentCode: 'ENG',
-    designation: 'Senior Software Engineer',
-    countryCode: 'US',
-    city: 'San Francisco',
-    joiningDate: new Date('2021-03-15'),
-    employmentStatus: EmploymentStatus.ACTIVE,
-    salary: {
-      baseSalary: 145000,
-      bonus: 12000,
-      allowances: 6000,
-      deductions: 8500,
-      currency: 'USD',
-      effectiveFrom: new Date('2024-01-01'),
-    },
-  },
-  {
-    employeeCode: 'ACME-000002',
-    firstName: 'Rohan',
-    lastName: 'Mehta',
-    email: 'rohan.mehta@acme.example',
-    phone: '+91-98765-43210',
-    departmentCode: 'ENG',
-    designation: 'Engineering Manager',
-    countryCode: 'IN',
-    city: 'Bengaluru',
-    joiningDate: new Date('2019-07-01'),
-    employmentStatus: EmploymentStatus.ACTIVE,
-    salary: {
-      baseSalary: 3200000,
-      bonus: 400000,
-      allowances: 180000,
-      deductions: 250000,
-      currency: 'INR',
-      effectiveFrom: new Date('2024-04-01'),
-    },
-  },
-  {
-    employeeCode: 'ACME-000003',
-    firstName: 'Emily',
-    lastName: 'Carter',
-    email: 'emily.carter@acme.example',
-    phone: '+44-7700-900123',
-    departmentCode: 'FIN',
-    designation: 'Finance Analyst',
-    countryCode: 'GB',
-    city: 'London',
-    joiningDate: new Date('2022-09-12'),
-    employmentStatus: EmploymentStatus.ACTIVE,
-    salary: {
-      baseSalary: 62000,
-      bonus: 4000,
-      allowances: 2500,
-      deductions: 3200,
-      currency: 'GBP',
-      effectiveFrom: new Date('2023-10-01'),
-    },
-  },
-  {
-    employeeCode: 'ACME-000004',
-    firstName: 'Jonas',
-    lastName: 'Weber',
-    email: 'jonas.weber@acme.example',
-    phone: '+49-151-555-0199',
-    departmentCode: 'SAL',
-    designation: 'Account Executive',
-    countryCode: 'DE',
-    city: 'Berlin',
-    joiningDate: new Date('2020-01-20'),
-    employmentStatus: EmploymentStatus.INACTIVE,
-    salary: {
-      baseSalary: 78000,
-      bonus: 15000,
-      allowances: 3000,
-      deductions: 4100,
-      currency: 'EUR',
-      effectiveFrom: new Date('2022-01-01'),
-    },
-  },
-  {
-    employeeCode: 'ACME-000005',
-    firstName: 'Mei',
-    lastName: 'Tan',
-    email: 'mei.tan@acme.example',
-    phone: '+65-8123-4567',
-    departmentCode: 'HR',
-    designation: 'HR Business Partner',
-    countryCode: 'SG',
-    city: 'Singapore',
-    joiningDate: new Date('2018-11-05'),
-    employmentStatus: EmploymentStatus.ACTIVE,
-    salary: {
-      baseSalary: 98000,
-      bonus: 8000,
-      allowances: 5000,
-      deductions: 4500,
-      currency: 'SGD',
-      effectiveFrom: new Date('2024-06-01'),
-    },
-  },
-];
-
-async function main() {
-  for (const country of countries) {
+async function upsertReferenceData() {
+  for (const country of COUNTRIES) {
     await prisma.country.upsert({
       where: { code: country.code },
       update: { name: country.name, currencyCode: country.currencyCode },
-      create: country,
+      create: {
+        code: country.code,
+        name: country.name,
+        currencyCode: country.currencyCode,
+      },
     });
   }
 
-  for (const department of departments) {
+  for (const department of DEPARTMENTS) {
     await prisma.department.upsert({
       where: { code: department.code },
       update: { name: department.name, isActive: true },
-      create: { ...department, isActive: true },
+      create: {
+        code: department.code,
+        name: department.name,
+        isActive: true,
+      },
     });
   }
 
-  const passwordHash = await bcrypt.hash(HR_PASSWORD, 10);
+  const passwordHash = await bcrypt.hash(SEED_CONSTANTS.HR_PASSWORD, 10);
 
-  await prisma.user.upsert({
-    where: { email: HR_EMAIL },
-    update: {
-      passwordHash,
-      role: Role.HR_MANAGER,
-      isActive: true,
-    },
+  const hrUser = await prisma.user.upsert({
+    where: { email: SEED_CONSTANTS.HR_EMAIL },
+    update: { passwordHash, role: Role.HR_MANAGER, isActive: true },
     create: {
-      email: HR_EMAIL,
+      email: SEED_CONSTANTS.HR_EMAIL,
       passwordHash,
       role: Role.HR_MANAGER,
       isActive: true,
@@ -171,14 +55,10 @@ async function main() {
   });
 
   await prisma.user.upsert({
-    where: { email: 'super.admin@acme.example' },
-    update: {
-      passwordHash,
-      role: Role.SUPER_ADMIN,
-      isActive: true,
-    },
+    where: { email: SEED_CONSTANTS.SUPER_ADMIN_EMAIL },
+    update: { passwordHash, role: Role.SUPER_ADMIN, isActive: true },
     create: {
-      email: 'super.admin@acme.example',
+      email: SEED_CONSTANTS.SUPER_ADMIN_EMAIL,
       passwordHash,
       role: Role.SUPER_ADMIN,
       isActive: true,
@@ -192,63 +72,163 @@ async function main() {
     (await prisma.department.findMany()).map((d) => [d.code, d]),
   );
 
-  for (const sample of sampleEmployees) {
-    const country = countryByCode[sample.countryCode];
-    const department = departmentByCode[sample.departmentCode];
-    if (!country || !department) continue;
+  return { hrUser, countryByCode, departmentByCode };
+}
 
-    const employee = await prisma.employee.upsert({
-      where: { employeeCode: sample.employeeCode },
-      update: {
-        firstName: sample.firstName,
-        lastName: sample.lastName,
-        email: sample.email,
-        phone: sample.phone,
-        departmentId: department.id,
-        designation: sample.designation,
-        countryId: country.id,
-        city: sample.city,
-        joiningDate: sample.joiningDate,
-        employmentStatus: sample.employmentStatus,
-      },
-      create: {
-        employeeCode: sample.employeeCode,
-        firstName: sample.firstName,
-        lastName: sample.lastName,
-        email: sample.email,
-        phone: sample.phone,
-        departmentId: department.id,
-        designation: sample.designation,
-        countryId: country.id,
-        city: sample.city,
-        joiningDate: sample.joiningDate,
-        employmentStatus: sample.employmentStatus,
-      },
+async function main() {
+  console.log('Generating deterministic workforce...');
+  const workforce = generateWorkforce();
+  const integrity = assertWorkforceIntegrity(workforce);
+  console.log(
+    `Generated ${integrity.count} employees (${integrity.activeCount} active, ${integrity.inactiveCount} inactive) across currencies: ${integrity.currencies.join(', ')}`,
+  );
+
+  const { hrUser, countryByCode, departmentByCode } = await upsertReferenceData();
+
+  const employeeRows = workforce.map((employee) => {
+    const country = countryByCode[employee.countryCode];
+    const department = departmentByCode[employee.departmentCode];
+    if (!country || !department) {
+      throw new Error(`Missing reference for ${employee.employeeCode}`);
+    }
+    return {
+      id: employee.id,
+      employeeCode: employee.employeeCode,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      email: employee.email,
+      phone: employee.phone,
+      departmentId: department.id,
+      designation: employee.designation,
+      countryId: country.id,
+      city: employee.city,
+      joiningDate: new Date(`${employee.joiningDate}T00:00:00.000Z`),
+      employmentStatus:
+        employee.employmentStatus === 'ACTIVE'
+          ? EmploymentStatus.ACTIVE
+          : EmploymentStatus.INACTIVE,
+      managerId: null as string | null,
+    };
+  });
+
+  console.log('Inserting employees in batches...');
+  for (let i = 0; i < employeeRows.length; i += SEED_CONSTANTS.BATCH_SIZE) {
+    const batch = employeeRows.slice(i, i + SEED_CONSTANTS.BATCH_SIZE);
+    await prisma.employee.createMany({
+      data: batch,
+      skipDuplicates: true,
+    });
+    if ((i / SEED_CONSTANTS.BATCH_SIZE) % 4 === 0) {
+      console.log(`  employees ${Math.min(i + SEED_CONSTANTS.BATCH_SIZE, employeeRows.length)}/${employeeRows.length}`);
+    }
+  }
+
+  // Second pass: assign managers in bulk (managers already exist from first insert).
+  console.log('Assigning managers...');
+  const managerUpdates = workforce
+    .filter((e) => e.managerIndex !== null)
+    .map((e) => ({
+      id: e.id,
+      managerId: workforce[e.managerIndex!]!.id,
+    }));
+
+  for (let i = 0; i < managerUpdates.length; i += SEED_CONSTANTS.BATCH_SIZE) {
+    const batch = managerUpdates.slice(i, i + SEED_CONSTANTS.BATCH_SIZE);
+    const values = batch
+      .map((row) => `('${row.id}'::uuid, '${row.managerId}'::uuid)`)
+      .join(', ');
+    await prisma.$executeRawUnsafe(`
+      UPDATE employees AS e
+      SET manager_id = v.manager_id
+      FROM (VALUES ${values}) AS v(id, manager_id)
+      WHERE e.id = v.id
+    `);
+  }
+
+  const existingOpen = await prisma.salaryRecord.findMany({
+    where: { effectiveTo: null },
+    select: { employeeId: true },
+  });
+  const employeesWithOpen = new Set(existingOpen.map((r) => r.employeeId));
+
+  const salaryRows = [];
+  const revisionRows = [];
+
+  for (const employee of workforce) {
+    if (employeesWithOpen.has(employee.id)) continue;
+
+    if (employee.priorSalary) {
+      salaryRows.push({
+        id: employee.priorSalary.id,
+        employeeId: employee.id,
+        baseSalary: employee.priorSalary.baseSalary,
+        bonus: employee.priorSalary.bonus,
+        allowances: employee.priorSalary.allowances,
+        deductions: employee.priorSalary.deductions,
+        currency: employee.priorSalary.currency,
+        effectiveFrom: new Date(`${employee.priorSalary.effectiveFrom}T00:00:00.000Z`),
+        effectiveTo: new Date(`${employee.priorSalary.effectiveTo}T00:00:00.000Z`),
+      });
+    }
+
+    salaryRows.push({
+      id: employee.salary.id,
+      employeeId: employee.id,
+      baseSalary: employee.salary.baseSalary,
+      bonus: employee.salary.bonus,
+      allowances: employee.salary.allowances,
+      deductions: employee.salary.deductions,
+      currency: employee.salary.currency,
+      effectiveFrom: new Date(`${employee.salary.effectiveFrom}T00:00:00.000Z`),
+      effectiveTo: null,
     });
 
-    const openSalary = await prisma.salaryRecord.findFirst({
-      where: { employeeId: employee.id, effectiveTo: null },
-    });
-
-    if (!openSalary) {
-      await prisma.salaryRecord.create({
-        data: {
-          employeeId: employee.id,
-          baseSalary: sample.salary.baseSalary,
-          bonus: sample.salary.bonus,
-          allowances: sample.salary.allowances,
-          deductions: sample.salary.deductions,
-          currency: sample.salary.currency,
-          effectiveFrom: sample.salary.effectiveFrom,
-          effectiveTo: null,
-        },
+    if (employee.priorSalary) {
+      revisionRows.push({
+        id: deterministicRevisionId(employee.id),
+        employeeId: employee.id,
+        previousRecordId: employee.priorSalary.id,
+        newRecordId: employee.salary.id,
+        changedBy: hrUser.id,
+        changeReason: 'Annual compensation review',
+        createdAt: new Date(`${employee.salary.effectiveFrom}T12:00:00.000Z`),
       });
     }
   }
 
-  console.log('Seed complete (Phase 3 bootstrap with sample employees).');
-  console.log(`HR Manager login: ${HR_EMAIL} / ${HR_PASSWORD}`);
-  console.log('Change default passwords after first login in production.');
+  console.log(`Inserting ${salaryRows.length} salary records...`);
+  for (let i = 0; i < salaryRows.length; i += SEED_CONSTANTS.BATCH_SIZE) {
+    const batch = salaryRows.slice(i, i + SEED_CONSTANTS.BATCH_SIZE);
+    await prisma.salaryRecord.createMany({
+      data: batch,
+      skipDuplicates: true,
+    });
+  }
+
+  if (revisionRows.length > 0) {
+    console.log(`Inserting ${revisionRows.length} salary revisions...`);
+    for (let i = 0; i < revisionRows.length; i += SEED_CONSTANTS.BATCH_SIZE) {
+      const batch = revisionRows.slice(i, i + SEED_CONSTANTS.BATCH_SIZE);
+      await prisma.salaryRevision.createMany({
+        data: batch,
+        skipDuplicates: true,
+      });
+    }
+  }
+
+  const employeeCount = await prisma.employee.count();
+  const openSalaryCount = await prisma.salaryRecord.count({ where: { effectiveTo: null } });
+
+  console.log('Seed complete.');
+  console.log(`Employees in DB: ${employeeCount}`);
+  console.log(`Open salary records: ${openSalaryCount}`);
+  console.log(`HR Manager login: ${SEED_CONSTANTS.HR_EMAIL} / ${SEED_CONSTANTS.HR_PASSWORD}`);
+}
+
+function deterministicRevisionId(employeeId: string): string {
+  // Derive a stable UUID-like id from employee id suffix.
+  const suffix = employeeId.slice(-12);
+  return `b0000000-0000-4000-8000-${suffix}`;
 }
 
 main()
