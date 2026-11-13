@@ -1,12 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
-import { AnyZodObject, ZodEffects } from 'zod';
-
-type Schema = AnyZodObject | ZodEffects<AnyZodObject>;
+import { ZodTypeAny } from 'zod';
 
 type ValidationTarget = {
-  body?: Schema;
-  query?: Schema;
-  params?: Schema;
+  body?: ZodTypeAny;
+  query?: ZodTypeAny;
+  params?: ZodTypeAny;
 };
 
 export function validate(schema: ValidationTarget) {

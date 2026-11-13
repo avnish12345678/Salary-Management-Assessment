@@ -5,7 +5,11 @@ import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { requestIdMiddleware } from './middleware/request-id';
 import authRoutes from './modules/auth/auth.routes';
+import countriesRoutes from './modules/countries/countries.routes';
+import departmentsRoutes from './modules/departments/departments.routes';
+import employeesRoutes from './modules/employees/employees.routes';
 import healthRoutes from './modules/health/health.routes';
+import salariesRoutes from './modules/salaries/salaries.routes';
 
 export function createApp() {
   const app = express();
@@ -32,6 +36,10 @@ export function createApp() {
 
   app.use('/api/health', healthRoutes);
   app.use('/api/auth', authRoutes);
+  app.use('/api/countries', countriesRoutes);
+  app.use('/api/departments', departmentsRoutes);
+  app.use('/api/employees', employeesRoutes);
+  app.use('/api/salaries', salariesRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
