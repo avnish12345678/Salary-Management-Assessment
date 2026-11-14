@@ -4,16 +4,19 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
-  DialogTitle,
   Grid,
   MenuItem,
   Stack,
   TextField,
+  Typography,
 } from '@mui/material';
+import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
+import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { AcmeDialogHeader } from '../../components/AcmeDialogHeader';
 import type { Country, Department, Employee } from '../../types/api';
 import { createEmployee, updateEmployee } from '../../services/employees-service';
 import axios from 'axios';
@@ -71,6 +74,7 @@ export function EmployeeFormDialog({
   });
 
   const countryId = watch('countryId');
+  const currencyOptions = [...new Set(countries.map((c) => c.currencyCode))].sort();
 
   useEffect(() => {
     if (!open) return;
@@ -168,10 +172,26 @@ export function EmployeeFormDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>{isEdit ? 'Edit employee' : 'Add employee'}</DialogTitle>
+      <AcmeDialogHeader
+        title={isEdit ? 'Edit employee' : 'Add employee'}
+        subtitle={
+          isEdit
+            ? 'Update workforce profile details for this employee.'
+            : 'Create a new ACME employee profile and optional opening salary.'
+        }
+        icon={isEdit ? <ManageAccountsOutlinedIcon /> : <PersonAddAltOutlinedIcon />}
+        onClose={onClose}
+      />
       <DialogContent>
-        <Stack component="form" id="employee-form" onSubmit={onSubmit} spacing={2} sx={{ mt: 1 }}>
+        <Stack component="form" id="employee-form" onSubmit={onSubmit} spacing={2.25} sx={{ pt: 0.5 }}>
           {error && <Alert severity="error">{error}</Alert>}
+          <Typography
+            variant="overline"
+            color="secondary"
+            sx={{ display: 'block', letterSpacing: '0.08em' }}
+          >
+            Profile details
+          </Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
@@ -278,6 +298,15 @@ export function EmployeeFormDialog({
             </Grid>
             {!isEdit && (
               <>
+                <Grid size={{ xs: 12 }}>
+                  <Typography
+                    variant="overline"
+                    color="secondary"
+                    sx={{ display: 'block', letterSpacing: '0.08em', mt: 0.5 }}
+                  >
+                    Opening salary
+                  </Typography>
+                </Grid>
                 <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
                     label="Base salary"
@@ -306,7 +335,21 @@ export function EmployeeFormDialog({
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField label="Currency" fullWidth {...register('currency')} />
+                  <TextField
+                    select
+                    label="Currency"
+                    fullWidth
+                    defaultValue=""
+                    error={Boolean(errors.currency)}
+                    helperText={errors.currency?.message}
+                    {...register('currency')}
+                  >
+                    {currencyOptions.map((code) => (
+                      <MenuItem key={code} value={code}>
+                        {code}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Grid>
                 <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
@@ -322,8 +365,10 @@ export function EmployeeFormDialog({
           </Grid>
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose}>Cancel</Button>
+      <DialogActions>
+        <Button onClick={onClose} color="inherit">
+          Cancel
+        </Button>
         <Button type="submit" form="employee-form" variant="contained" disabled={isSubmitting}>
           {isEdit ? 'Save changes' : 'Create employee'}
         </Button>

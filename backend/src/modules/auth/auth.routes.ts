@@ -3,7 +3,7 @@ import { authenticate } from '../../middleware/auth';
 import { loginRateLimiter } from '../../middleware/login-rate-limit';
 import { validate } from '../../middleware/validate';
 import * as authController from './auth.controller';
-import { loginSchema } from './auth.validation';
+import { changePasswordSchema, loginSchema } from './auth.validation';
 
 const router = Router();
 
@@ -16,5 +16,11 @@ router.post(
 
 router.post('/logout', authenticate, authController.logout);
 router.get('/me', authenticate, authController.me);
+router.post(
+  '/change-password',
+  authenticate,
+  validate({ body: changePasswordSchema }),
+  authController.changePassword,
+);
 
 export default router;

@@ -29,7 +29,7 @@ describe('SalaryRevisionDialog', () => {
     const base = screen.getByLabelText(/base salary/i);
     await user.clear(base);
     await user.type(base, '0');
-    await user.click(screen.getByRole('button', { name: /save revision/i }));
+    await user.click(screen.getByRole('button', { name: /save (revision|salary)/i }));
 
     expect(await screen.findByText(/number must be greater than 0|too small|invalid/i)).toBeTruthy();
     expect(reviseSalary).not.toHaveBeenCalled();

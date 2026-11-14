@@ -24,18 +24,21 @@ export type DashboardAnalytics = {
   charts: {
     countryPayroll: Array<{
       country: string;
+      countryCode: string;
       currency: string;
       totalPayroll: string;
       employeeCount: number;
     }>;
     departmentPayroll: Array<{
       department: string;
+      departmentCode: string;
       currency: string;
       totalPayroll: string;
       employeeCount: number;
     }>;
     departmentAverageSalary: Array<{
       department: string;
+      departmentCode: string;
       currency: string;
       averageSalary: string;
       employeeCount: number;

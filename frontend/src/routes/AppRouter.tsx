@@ -7,8 +7,8 @@ import { EmployeesPage } from '../features/employees/EmployeesPage';
 import { ReportsPage } from '../features/reports/ReportsPage';
 import { SalariesPage } from '../features/salaries/SalariesPage';
 import { SalaryHistoryPage } from '../features/salaries/SalaryHistoryPage';
+import { SettingsPage } from '../features/settings/SettingsPage';
 import { AppLayout } from '../layouts/AppLayout';
-import { PlaceholderPage } from '../pages/PlaceholderPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 export function AppRouter() {
@@ -26,15 +26,7 @@ export function AppRouter() {
             <Route path="/salary-history" element={<SalaryHistoryPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/audit" element={<AuditLogsPage />} />
-            <Route
-              path="/settings"
-              element={
-                <PlaceholderPage
-                  title="Settings"
-                  description="Profile and preference settings will be available later."
-                />
-              }
-            />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

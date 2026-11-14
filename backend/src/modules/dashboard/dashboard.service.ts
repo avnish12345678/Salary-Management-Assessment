@@ -160,18 +160,21 @@ export async function getDashboardAnalytics(filters: DashboardFilters) {
     charts: {
       countryPayroll: countryPayrollRows.map((item) => ({
         country: item.label ?? 'Unknown',
+        countryCode: item.code ?? 'XX',
         currency: item.currency,
         totalPayroll: serializeMoney(item.total),
         employeeCount: Number(item.count),
       })),
       departmentPayroll: departmentPayrollRows.map((item) => ({
         department: item.label ?? 'Unknown',
+        departmentCode: item.code ?? 'UNK',
         currency: item.currency,
         totalPayroll: serializeMoney(item.total),
         employeeCount: Number(item.count),
       })),
       departmentAverageSalary: departmentPayrollRows.map((item) => ({
         department: item.label ?? 'Unknown',
+        departmentCode: item.code ?? 'UNK',
         currency: item.currency,
         averageSalary: serializeMoney(new Prisma.Decimal(item.total).div(item.count)),
         employeeCount: Number(item.count),

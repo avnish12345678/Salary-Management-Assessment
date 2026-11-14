@@ -55,7 +55,9 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('Total Employees')).toBeInTheDocument();
     expect(screen.getByText('Active Employees')).toBeInTheDocument();
     expect(screen.getByText('4')).toBeInTheDocument();
-    expect(screen.getByText(/never aggregated across currencies/i)).toBeInTheDocument();
-    expect(screen.getByText(/Annual Payroll \(USD\)/i)).toBeInTheDocument();
+    expect(screen.getByText('USD')).toBeInTheDocument();
+    expect(screen.getByText(/Annual payroll by currency/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Trend')).toBeInTheDocument();
+    expect(screen.getAllByText('Country-wise payroll').length).toBeGreaterThan(0);
   });
 });

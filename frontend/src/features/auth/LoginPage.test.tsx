@@ -25,7 +25,7 @@ describe('LoginPage', () => {
       </MemoryRouter>,
     );
 
-    await user.clear(screen.getByLabelText(/password/i));
+    await user.clear(screen.getByLabelText(/^password$/i, { selector: 'input' }));
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     expect(await screen.findByText(/password must be at least 8 characters/i)).toBeInTheDocument();

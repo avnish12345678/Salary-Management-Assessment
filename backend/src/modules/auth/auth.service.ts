@@ -1,10 +1,10 @@
 import { Role } from '@prisma/client';
 import { prisma } from '../../config/db';
-import { UnauthorizedError } from '../../utils/errors';
+import { UnauthorizedError, ValidationError } from '../../utils/errors';
 import { signAccessToken } from '../../utils/jwt';
-import { verifyPassword } from '../../utils/password';
+import { hashPassword, verifyPassword } from '../../utils/password';
 import { getPermissionsForRole } from '../../utils/permissions';
-import { LoginInput } from './auth.validation';
+import { ChangePasswordInput, LoginInput } from './auth.validation';
 
 type UserRecord = {
   id: string;
@@ -77,5 +77,31 @@ export async function getCurrentUser(userId: string) {
 export function logout() {
   return {
     message: 'Logged out successfully. Discard the client token.',
+  };
+}
+
+export async function changePassword(userId: string, input: ChangePasswordInput) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, isActive: true, passwordHash: true },
+  });
+
+  if (!user || !user.isActive) {
+    throw new UnauthorizedError('User is inactive or does not exist');
+  }
+
+  const valid = await verifyPassword(input.currentPassword, user.passwordHash);
+  if (!valid) {
+    throw new ValidationError('Current password is incorrect');
+  }
+
+  const passwordHash = await hashPassword(input.newPassword);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+
+  return {
+    message: 'Password updated successfully',
   };
 }
